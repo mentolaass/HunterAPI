@@ -19,6 +19,7 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests((auth) -> auth
+                        .requestMatchers("api/v1/inspection/log").hasAnyAuthority(UserRole.ADMIN.name())
                         .requestMatchers("api/v1/user/*").hasAnyAuthority(UserRole.ADMIN.name())
                         .requestMatchers("api/v1/inspection/create").hasAnyAuthority(UserRole.ADMIN.name(), UserRole.DEFAULT.name())
                         .requestMatchers("api/v1/inspection/").hasAnyAuthority(UserRole.ADMIN.name(), UserRole.DEFAULT.name())

@@ -41,10 +41,6 @@ public final class Inspection {
     @Column(name = "owner")
     private long owner;
 
-    @JsonProperty("inspection_log")
-    @Column(name = "inspection_log")
-    private String log;
-
     @JsonProperty("access_token")
     @Column(name = "access_token")
     private String token;

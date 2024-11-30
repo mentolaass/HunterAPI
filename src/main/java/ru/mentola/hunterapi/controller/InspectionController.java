@@ -2,13 +2,14 @@ package ru.mentola.hunterapi.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import ru.mentola.hunterapi.model.inspection.Inspection;
 import ru.mentola.hunterapi.model.inspection.InspectionStatus;
-import ru.mentola.hunterapi.model.inspection.InspectionUpdateContext;
-import ru.mentola.hunterapi.model.inspection.UpdateContextType;
 import ru.mentola.hunterapi.service.InspectionService;
+import ru.mentola.hunterapi.service.InspectionStorageService;
 import ru.mentola.hunterapi.service.UserService;
 
 import java.util.Set;
@@ -22,9 +23,40 @@ public final class InspectionController {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private InspectionStorageService inspectionStorageService;
+
+    @Value("${app.inspection.autoclose}")
+    private boolean inspectionAutoclose;
+
     @PostMapping("/")
     public ResponseEntity<Set<Inspection>> findAllInspections() {
         return ResponseEntity.ok(inspectionService.findAll());
+    }
+
+    @PostMapping("/get")
+    public ResponseEntity<Inspection> inspection(
+            @RequestParam("token") String token
+    ) {
+        try {
+            var qInspection = inspectionService.findByToken(token);
+            if (qInspection.isEmpty()) return ResponseEntity.notFound().build();
+            var inspection = qInspection.get();
+            return ResponseEntity.ok(inspection);
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("/log")
+    public ResponseEntity<Resource> logInspection(
+            @RequestParam("token") String token
+    ) {
+        try {
+            return ResponseEntity.ok(inspectionStorageService.getLog(token));
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @PostMapping("/create")
@@ -55,19 +87,25 @@ public final class InspectionController {
     @PostMapping("/update")
     public ResponseEntity<?> updateInspection(
             @RequestParam("token") String token,
-            @RequestBody InspectionUpdateContext updateContext
+            @RequestParam("file") MultipartFile file
             ) {
-        var qInspection = inspectionService.findByToken(token);
-        if (qInspection.isEmpty()) return ResponseEntity.notFound().build();
-        var inspection = qInspection.get();
-        if (!inspectionService.inspectionIsActive(inspection)) return ResponseEntity.badRequest().build();
-        if (updateContext.getUpdateContextType() == UpdateContextType.OVERWRITE) {
-            inspection.setLog(updateContext.getLog());
-        } else if (updateContext.getUpdateContextType() == UpdateContextType.ADD) {
-            inspection.setLog(inspection.getLog() + "\n\n" + updateContext.getLog());
+        try {
+            var qInspection = inspectionService.findByToken(token);
+            if (qInspection.isEmpty()) return ResponseEntity.notFound().build();
+            var inspection = qInspection.get();
+            if (inspection.getCurrentlyStatus() == InspectionStatus.CLOSED) return ResponseEntity.badRequest().build();
+            if (System.currentTimeMillis() >= inspection.getUntilTimestamp()
+                || inspectionAutoclose) {
+                inspection.setCurrentlyStatus(InspectionStatus.CLOSED);
+                inspectionService.saveInspection(inspection);
+                if (!inspectionAutoclose)
+                    return ResponseEntity.badRequest().build();
+            }
+            inspectionStorageService.updateLog(token, file);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().build();
         }
-        inspection.setLastUpdateTimestamp(System.currentTimeMillis());
-        inspectionService.saveInspection(inspection);
-        return ResponseEntity.ok().build();
     }
 }

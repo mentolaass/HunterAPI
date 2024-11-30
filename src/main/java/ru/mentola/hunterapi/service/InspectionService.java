@@ -32,7 +32,6 @@ public final class InspectionService implements IInspectionService {
     @Override
     public Inspection generateInspection(User owner) {
         return Inspection.builder()
-                .log("")
                 .owner(owner.getId())
                 .currentlyStatus(InspectionStatus.OPENED)
                 .createTimestamp(System.currentTimeMillis())
